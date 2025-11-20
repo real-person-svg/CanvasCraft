@@ -1,0 +1,9 @@
+{
+    "editor.formatOnSave": true,
+    // 控制是否在粘贴时格式化代码
+    "editor.formatOnPaste": true,
+    // 控制是否在键入时格式化代码
+    "editor.formatOnType": false,
+    // 设置默认格式化程序（如果有多个可用）
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // 以Prettier为例
+}
