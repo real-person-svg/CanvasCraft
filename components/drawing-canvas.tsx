@@ -259,18 +259,18 @@ export function DrawingCanvas() {
       // 获取所有可能的吸附点
       const snapPoints = getAllSnapPoints(shape);
 
-      // 检查水平吸附（只使用其他形状的吸附点）
-      const horizontalSnaps = snapPoints.map((p) => p.y);
+      // // 检查水平吸附（只使用其他形状的吸附点）
+      // const horizontalSnaps = snapPoints.map((p) => p.y);
 
-      // 检查垂直吸附（只使用其他形状的吸附点）
-      const verticalSnaps = snapPoints.map((p) => p.x);
+      // // 检查垂直吸附（只使用其他形状的吸附点）
+      // const verticalSnaps = snapPoints.map((p) => p.x);
 
-      // 处理X轴吸附
-      const closestX = verticalSnaps.reduce((closest, pos) => {
-        const distance = Math.abs(x - pos);
+      // 处理X轴吸附 verticalSnaps
+      const closestX = snapPoints.reduce((closest, pos) => {
+        const distance = Math.abs(x - pos.x);
         return distance < Math.abs(x - closest) &&
           distance <= snapDistance / stageScale
-          ? pos
+          ? pos.x
           : closest;
       }, Infinity);
 
@@ -284,12 +284,12 @@ export function DrawingCanvas() {
         });
       }
 
-      // 处理Y轴吸附
-      const closestY = horizontalSnaps.reduce((closest, pos) => {
-        const distance = Math.abs(y - pos);
+      // 处理Y轴吸附 horizontalSnaps
+      const closestY = snapPoints.reduce((closest, pos) => {
+        const distance = Math.abs(y - pos.y);
         return distance < Math.abs(y - closest) &&
           distance <= snapDistance / stageScale
-          ? pos
+          ? pos.y
           : closest;
       }, Infinity);
 
@@ -1076,35 +1076,6 @@ export function DrawingCanvas() {
             break;
         }
 
-        // 应用吸附
-        if (["e", "w", "nw", "ne", "sw", "se"].includes(resizeHandle)) {
-          const snapped = applySnapping(
-            newShape.x + (newShape.width || 0),
-            newShape.y,
-            shape
-          );
-          if (["e", "ne", "se"].includes(resizeHandle)) {
-            newShape.width = snapped.x - newShape.x;
-          } else if (["w", "nw", "sw"].includes(resizeHandle)) {
-            newShape.x = snapped.x;
-            newShape.width = (shape.width || 0) - deltaX;
-          }
-        }
-
-        if (["n", "s", "nw", "ne", "sw", "se"].includes(resizeHandle)) {
-          const snapped = applySnapping(
-            newShape.x,
-            newShape.y + (newShape.height || 0),
-            shape
-          );
-          if (["s", "sw", "se"].includes(resizeHandle)) {
-            newShape.height = snapped.y - newShape.y;
-          } else if (["n", "nw", "ne"].includes(resizeHandle)) {
-            newShape.y = snapped.y;
-            newShape.height = (shape.height || 0) - deltaY;
-          }
-        }
-
         updateShape(selectedIds[0], newShape);
         setStartPos(pos);
       }
@@ -1378,7 +1349,7 @@ export function DrawingCanvas() {
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         className={`cursor-${getCursorStyle()}`}
-        style={{ display: "block" }}
+        style={{ display: "block", cursor: getCursorStyle() }}
       />
     </div>
   );
