@@ -313,6 +313,25 @@ export function PropertiesPanel() {
     });
   };
 
+  const handleTypeToLabel = (type: string) => {
+    switch (type) {
+      case "rectangle":
+        return "矩形";
+      case "circle":
+        return "圆形";
+      case "line":
+        return "直线";
+      case "arrow":
+        return "箭头";
+      case "text":
+        return "文本";
+      case "image":
+        return "图片";
+      default:
+        return "元素";
+    }
+  };
+
   return (
     <div className="absolute top-20 right-4 w-64 bg-card border border-border rounded-lg shadow-lg p-4 z-10">
       {/* 面板头部 */}
@@ -320,7 +339,7 @@ export function PropertiesPanel() {
         <h3 className="font-medium text-sm">
           {isMultiSelect
             ? `${selectedIds.length} 个元素`
-            : selectedShapes[0]?.type || "元素"}
+            : handleTypeToLabel(selectedShapes[0]?.type) || "元素"}
         </h3>
         <Button
           variant="ghost"
