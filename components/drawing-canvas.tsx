@@ -15,13 +15,7 @@ import type { GuideLine } from "@/types/canvas";
 
 // 画笔压感模拟
 function getStroke(points: number[][], options: any = {}) {
-  const {
-    size = 8,
-    thinning = 0.5,
-    smoothing = 0.5,
-    streamline = 0.5,
-    simulatePressure = true,
-  } = options;
+  const { size = 8, thinning = 0.5, simulatePressure = true } = options;
 
   const inputPoints = points.map((point, i) => {
     const pressure = simulatePressure
@@ -123,18 +117,35 @@ export function DrawingCanvas() {
     fillColor,
     opacity,
     showGrid,
-    addPath,
-    addShape,
-    updateShape,
-    deleteSelected,
+    rotation,
     setSelectedIds,
     clearSelection,
     setStagePos,
     setStageScale,
-    clearCanvas,
     snapEnabled,
-    setSnapEnabled,
+    canvasId,
+    isCollaborating,
+    isCollabLoading,
+    collabError,
+    initializeCollaboration,
+    toggleCollaboration,
+    collaborativeAddPath,
+    collaborativeAddShape,
+    collaborativeUpdateShape,
+    collaborativeDeleteSelected,
+    collaborativeClearCanvas,
+    disconnectCollaboration,
   } = useCanvasStore();
+
+  // 初始化协同服务（仅创建实例，不自动连接）
+  useEffect(() => {
+    initializeCollaboration(canvasId); // 初始化服务实例（未连接状态）
+
+    return () => {
+      // 组件卸载时强制清理
+      disconnectCollaboration();
+    };
+  }, [canvasId]);
 
   // 监听窗口尺寸变化，更新画布尺寸
   useEffect(() => {
@@ -165,7 +176,7 @@ export function DrawingCanvas() {
     [stagePos, stageScale]
   );
 
-  // 查找当前鼠标位置的形状
+  // 查找当前鼠标位置的形状，实现碰撞检测
   const findShapeAtPosition = useCallback(
     (x: number, y: number): CanvasShape | null => {
       // 这样可以确保最上层的形状被选中
@@ -258,12 +269,6 @@ export function DrawingCanvas() {
 
       // 获取所有可能的吸附点
       const snapPoints = getAllSnapPoints(shape);
-
-      // // 检查水平吸附（只使用其他形状的吸附点）
-      // const horizontalSnaps = snapPoints.map((p) => p.y);
-
-      // // 检查垂直吸附（只使用其他形状的吸附点）
-      // const verticalSnaps = snapPoints.map((p) => p.x);
 
       // 处理X轴吸附 verticalSnaps
       const closestX = snapPoints.reduce((closest, pos) => {
@@ -434,7 +439,7 @@ export function DrawingCanvas() {
 
       if (existingShape) {
         // 更新现有文本内容
-        updateShape(editingText.id, {
+        collaborativeUpdateShape(editingText.id, {
           text: editingText.text,
         });
       } else {
@@ -454,7 +459,7 @@ export function DrawingCanvas() {
           height: editingText.fontSize,
           rotation: 0,
         };
-        addShape(textShape);
+        collaborativeAddShape(textShape);
       }
     }
 
@@ -520,6 +525,14 @@ export function DrawingCanvas() {
     selectedIds,
     showGrid,
     resolvedTheme,
+    rotation,
+    isCollaborating, // 添加协同状态作为依赖
+    canvasId, // 添加画布ID作为依赖，确保切换画布时重绘
+    collaborativeAddPath,
+    collaborativeAddShape,
+    collaborativeUpdateShape,
+    collaborativeDeleteSelected,
+    collaborativeClearCanvas,
   ]);
 
   // 只绘制临时吸附提示线
@@ -573,7 +586,7 @@ export function DrawingCanvas() {
     ctx.globalAlpha = 1;
   };
 
-  // 绘制真实感路径
+  // 绘制路径
   const drawRealisticPath = (
     ctx: CanvasRenderingContext2D,
     path: CanvasPath
@@ -1030,6 +1043,7 @@ export function DrawingCanvas() {
       return;
     }
 
+    // 如果是调整大小或拖动，更新形状大小或位置
     if (isResizing && resizeHandle && selectedIds.length === 1 && startPos) {
       const pos = getCanvasCoordinates(e.clientX, e.clientY);
       const shape = shapes.find((s) => s.id === selectedIds[0]);
@@ -1075,8 +1089,7 @@ export function DrawingCanvas() {
             newShape.width = (shape.width || 0) + deltaX;
             break;
         }
-
-        updateShape(selectedIds[0], newShape);
+        collaborativeUpdateShape(selectedIds[0], newShape);
         setStartPos(pos);
       }
       return;
@@ -1094,9 +1107,9 @@ export function DrawingCanvas() {
       selectedIds.forEach((id) => {
         const shape = shapes.find((s) => s.id === id);
         if (shape) {
-          updateShape(id, {
-            x: snappedPos.x, // shape.x + deltaX,
-            y: snappedPos.y, // shape.y + deltaY,
+          collaborativeUpdateShape(id, {
+            x: snappedPos.x,
+            y: snappedPos.y,
           });
         }
       });
@@ -1152,8 +1165,7 @@ export function DrawingCanvas() {
       currentPath.forEach(([x, y]) => {
         flatPoints.push(x, y);
       });
-
-      addPath({
+      collaborativeAddPath({
         id: Date.now().toString(),
         points: flatPoints,
         stroke: strokeColor,
@@ -1171,7 +1183,7 @@ export function DrawingCanvas() {
             currentShape.points[1] !== currentShape.points[3]));
 
       if (hasSize) {
-        addShape(currentShape);
+        collaborativeAddShape(currentShape);
       }
       setCurrentShape(null);
     }
@@ -1215,7 +1227,7 @@ export function DrawingCanvas() {
           "删除元素",
           `是否确认删除${selectedIds.length}个元素?`,
           () => {
-            deleteSelected();
+            collaborativeDeleteSelected();
           }
         );
       }
@@ -1223,7 +1235,7 @@ export function DrawingCanvas() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIds, deleteSelected]);
+  }, [selectedIds, collaborativeDeleteSelected]);
 
   const getCursorStyle = () => {
     if (isResizing) {
@@ -1264,6 +1276,53 @@ export function DrawingCanvas() {
       {/* 快捷键处理 */}
       <KeyboardShortcuts />
 
+      {/* 协同编辑开关按钮（放在画布操作区或顶部工具栏） */}
+      <div className="absolute top-4 left-4 flex items-center gap-2">
+        <button
+          onClick={toggleCollaboration}
+          disabled={isCollabLoading}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5
+            ${
+              isCollaborating
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : "bg-blue-500 hover:bg-blue-600 text-white"
+            }
+            ${
+              isCollabLoading
+                ? "opacity-70 cursor-not-allowed"
+                : "cursor-pointer"
+            }
+            shadow-md border border-transparent hover:border-opacity-50`}
+        >
+          {isCollabLoading && (
+            <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          )}
+          {isCollaborating ? "关闭协同编辑" : "开启协同编辑"}
+        </button>
+
+        {/* 错误提示 */}
+        {collabError && (
+          <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-md">
+            {collabError}
+          </span>
+        )}
+      </div>
+
+      {/* 协同状态指示器（保留原有） */}
+      <div className="absolute top-4 right-4 bg-card/80 border border-border rounded-full p-2 shadow-lg">
+        {isCollaborating ? (
+          <span className="flex items-center text-sm text-green-500">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+            协同编辑已开启
+          </span>
+        ) : (
+          <span className="flex items-center text-sm text-gray-500">
+            <span className="w-2 h-2 bg-gray-300 rounded-full mr-1"></span>
+            协同编辑已关闭
+          </span>
+        )}
+      </div>
+
       {/* 工具栏 */}
       <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
         <DrawingToolbar />
@@ -1276,7 +1335,7 @@ export function DrawingCanvas() {
       <CanvasOperations
         onClearCanvas={() => {
           showConfirmation("清空画布", "是否确认清空画布?此操作不可逆", () => {
-            clearCanvas();
+            collaborativeClearCanvas();
             setTempGuides([]); // 清除画布时同时清除临时辅助线
           });
         }}
@@ -1311,6 +1370,7 @@ export function DrawingCanvas() {
         />
       )}
 
+      {/* 文本编辑 */}
       {editingText && (
         <input
           ref={textInputRef}

@@ -207,10 +207,10 @@ export function PropertiesPanel() {
     rotation,
     setOpacity,
     setRotation,
-    addShape,
     clearSelection,
-    deleteSelected,
-    updateShape,
+    collaborativeAddShape,
+    collaborativeUpdateShape,
+    collaborativeDeleteSelected,
   } = useCanvasStore();
 
   if (selectedIds.length === 0) return null;
@@ -234,38 +234,38 @@ export function PropertiesPanel() {
 
   const handleStrokeColorChange = (color: string) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { stroke: color });
+      collaborativeUpdateShape(id, { stroke: color });
     });
   };
 
   const handleFillColorChange = (color: string) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { fill: color });
+      collaborativeUpdateShape(id, { fill: color });
     });
   };
 
   const handleStrokeWidthChange = (width: number) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { strokeWidth: width });
+      collaborativeUpdateShape(id, { strokeWidth: width });
     });
   };
 
   // 字体相关的处理函数
   const handleFontFamilyChange = (font: string) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { fontFamily: font });
+      collaborativeUpdateShape(id, { fontFamily: font });
     });
   };
 
   const handleFontSizeChange = (size: number) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { fontSize: size });
+      collaborativeUpdateShape(id, { fontSize: size });
     });
   };
 
   const handleBackgroundColorChange = (color: string) => {
     selectedIds.forEach((id) => {
-      updateShape(id, { backgroundColor: color });
+      collaborativeUpdateShape(id, { backgroundColor: color });
     });
   };
 
@@ -275,7 +275,7 @@ export function PropertiesPanel() {
     selectedIds.forEach((id) => {
       const shape = shapes.find((s) => s.id === id);
       if (shape) {
-        updateShape(id, { [style]: !shape[style] });
+        collaborativeUpdateShape(id, { [style]: !shape[style] });
       }
     });
   };
@@ -286,7 +286,7 @@ export function PropertiesPanel() {
 
     // 更新选中元素的透明度
     selectedIds.forEach((id) => {
-      updateShape(id, { opacity: newOpacity });
+      collaborativeUpdateShape(id, { opacity: newOpacity });
     });
   };
 
@@ -296,7 +296,7 @@ export function PropertiesPanel() {
 
     // 更新选中元素的旋转角度
     selectedIds.forEach((id) => {
-      updateShape(id, { rotation: newRotation });
+      collaborativeUpdateShape(id, { rotation: newRotation });
     });
   };
 
@@ -309,7 +309,7 @@ export function PropertiesPanel() {
         x: shape.x + 20,
         y: shape.y + 20,
       };
-      addShape(newShape);
+      collaborativeAddShape(newShape);
     });
   };
 
@@ -365,7 +365,7 @@ export function PropertiesPanel() {
         <Button
           variant="outline"
           size="sm"
-          onClick={deleteSelected}
+          onClick={collaborativeDeleteSelected}
           className="flex-1 h-8 text-xs gap-1 bg-transparent"
         >
           <Trash2 className="h-3 w-3" />
@@ -566,7 +566,7 @@ export function PropertiesPanel() {
               <select
                 value={selectedShapes[0].filter}
                 onChange={(e) =>
-                  updateShape(selectedShapes[0].id, {
+                  collaborativeUpdateShape(selectedShapes[0].id, {
                     filter: e.target.value as ImageFilter,
                   })
                 }
@@ -652,7 +652,7 @@ export function PropertiesPanel() {
                   type="number"
                   value={Math.round(selectedShapes[0].x)}
                   onChange={(e) =>
-                    updateShape(selectedShapes[0].id, {
+                    collaborativeUpdateShape(selectedShapes[0].id, {
                       x: Number(e.target.value),
                     })
                   }
@@ -665,7 +665,7 @@ export function PropertiesPanel() {
                   type="number"
                   value={Math.round(selectedShapes[0].y)}
                   onChange={(e) =>
-                    updateShape(selectedShapes[0].id, {
+                    collaborativeUpdateShape(selectedShapes[0].id, {
                       y: Number(e.target.value),
                     })
                   }
@@ -691,7 +691,7 @@ export function PropertiesPanel() {
                     type="number"
                     value={Math.round(selectedShapes[0].width || 0)}
                     onChange={(e) =>
-                      updateShape(selectedShapes[0].id, {
+                      collaborativeUpdateShape(selectedShapes[0].id, {
                         width: Number(e.target.value),
                       })
                     }
@@ -704,7 +704,7 @@ export function PropertiesPanel() {
                     type="number"
                     value={Math.round(selectedShapes[0].height || 0)}
                     onChange={(e) =>
-                      updateShape(selectedShapes[0].id, {
+                      collaborativeUpdateShape(selectedShapes[0].id, {
                         height: Number(e.target.value),
                       })
                     }
