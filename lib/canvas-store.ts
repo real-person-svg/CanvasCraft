@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { CanvasPath, CanvasShape, Tool } from "@/types/canvas";
+import { CollaborationService } from "@/lib/collaboration-service";
+import type { CanvasState } from "@/lib/collaboration-service";
 
 interface CanvasStore {
   // 基础工具和状态
@@ -89,6 +91,27 @@ interface CanvasStore {
 
   // 主题相关
   updateStrokeForTheme: (isDark: boolean) => void;
+
+  // 协同编辑
+  setPaths: (paths: CanvasPath[]) => void;
+  setShapes: (shapes: CanvasShape[]) => void;
+
+  // 协同编辑状态和方法
+  isCollaborating: boolean;
+  isCollabLoading: boolean;
+  collabError: string | null;
+  canvasId: string;
+  collabService: CollaborationService | null;
+
+  // 协同画布操作
+  initializeCollaboration: (canvasId: string) => void;
+  toggleCollaboration: () => Promise<void>;
+  collaborativeAddPath: (path: CanvasPath) => void;
+  collaborativeAddShape: (shape: CanvasShape) => void;
+  collaborativeUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
+  collaborativeDeleteSelected: () => void;
+  collaborativeClearCanvas: () => void;
+  disconnectCollaboration: () => void;
 }
 
 // 初始化数据加载
@@ -237,12 +260,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   zoomIn: () => {
     const currentScale = get().stageScale;
-    const newScale = Math.min(currentScale * 1.2, 5); // Max zoom 5x
+    const newScale = Math.min(currentScale * 1.2, 5); // 最大缩放 5x
     set({ stageScale: newScale });
   },
   zoomOut: () => {
     const currentScale = get().stageScale;
-    const newScale = Math.max(currentScale / 1.2, 0.1); // Min zoom 0.1x
+    const newScale = Math.max(currentScale / 1.2, 0.1); // 最小缩放 0.1x
     set({ stageScale: newScale });
   },
 
@@ -258,7 +281,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push({ paths: [...paths], shapes: [...shapes] });
 
-    // Limit history to 50 entries
+    // 保持历史记录不超过 50 条
     if (newHistory.length > 50) {
       newHistory.shift();
     } else {
@@ -339,7 +362,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   loadFromLocalStorage: (name?: string) => {
     try {
-      // Check if we're in the browser (client-side)
       if (typeof window === "undefined") {
         return false;
       }
@@ -355,7 +377,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           // 直接解析数据
           const data = JSON.parse(drawing.data);
 
-          // Validate data structure
           if (
             !data.paths ||
             !data.shapes ||
@@ -399,7 +420,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   getSavedDrawings: () => {
     try {
-      // Check if we're in the browser (client-side)
       if (typeof window === "undefined") {
         return [];
       }
@@ -409,7 +429,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return Object.keys(savedDrawings).sort((a, b) => {
         const timeA = new Date(savedDrawings[a].timestamp).getTime();
         const timeB = new Date(savedDrawings[b].timestamp).getTime();
-        return timeB - timeA; // Most recent first
+        return timeB - timeA;
       });
     } catch (error) {
       console.error("Failed to get saved drawings:", error);
@@ -418,7 +438,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   deleteSavedDrawing: (name: string) => {
     try {
-      // Check if we're in the browser (client-side)
       if (typeof window === "undefined") {
         return;
       }
@@ -463,9 +482,126 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   // 主题相关
   updateStrokeForTheme: (isDark) => {
     const currentColor = get().strokeColor;
-    // Only update if using default black or white colors
     if (currentColor === "#000000" || currentColor === "#ffffff") {
       set({ strokeColor: isDark ? "#ffffff" : "#000000" });
     }
+  },
+
+  // 协同编辑方法
+  setPaths: (paths) => set({ paths }),
+  setShapes: (shapes) => set({ shapes }),
+
+  // 协同编辑状态
+  isCollaborating: false,
+  isCollabLoading: false,
+  collabError: null,
+  canvasId: "default-canvas",
+  collabService: null,
+
+  initializeCollaboration: (canvasId: string) => {
+    if (typeof window === "undefined") return;
+
+    const service = new CollaborationService(canvasId);
+
+    // 注册状态变化回调
+    const stateChangeCallback = (state: CanvasState) => {
+      get().setPaths(state.paths);
+      get().setShapes(state.shapes);
+      set({ isCollaborating: true, isCollabLoading: false, collabError: null });
+    };
+
+    service.onStateChanged(stateChangeCallback);
+
+    set({ collabService: service, canvasId });
+  },
+
+  toggleCollaboration: async () => {
+    const { collabService, isCollaborating, setPaths, setShapes } = get();
+    if (!collabService) {
+      // 如果还没有初始化服务，先初始化
+      get().initializeCollaboration("default-canvas");
+      return;
+    }
+
+    if (isCollaborating) {
+      // 关闭协同
+      collabService.disconnect();
+      set({ isCollaborating: false, collabError: null });
+    } else {
+      // 开启协同（带加载和错误处理）
+      set({ isCollabLoading: true, collabError: null });
+
+      try {
+        // 触发连接（通过订阅文档实现）
+        await collabService.subscribe();
+
+        // 连接成功后同步初始状态
+        const initialState = collabService.getCurrentState();
+        setPaths(initialState.paths);
+        setShapes(initialState.shapes);
+        set({ isCollaborating: true });
+      } catch (err) {
+        set({ collabError: "协同连接失败，请重试" });
+        console.error("协同连接失败:", err);
+      } finally {
+        set({ isCollabLoading: false });
+      }
+    }
+  },
+
+  collaborativeAddPath: (path: CanvasPath) => {
+    const { collabService, isCollaborating, addPath } = get();
+    if (collabService && isCollaborating) {
+      collabService.addPath(path);
+    } else {
+      addPath(path);
+    }
+  },
+
+  collaborativeAddShape: (shape: CanvasShape) => {
+    const { collabService, isCollaborating, addShape } = get();
+    if (collabService && isCollaborating) {
+      collabService.addShape(shape);
+    } else {
+      addShape(shape);
+    }
+  },
+
+  collaborativeUpdateShape: (id: string, updates: Partial<CanvasShape>) => {
+    const { collabService, isCollaborating, updateShape } = get();
+    if (collabService && isCollaborating) {
+      collabService.updateShape(id, updates);
+      updateShape(id, updates);
+    } else {
+      updateShape(id, updates);
+    }
+  },
+
+  collaborativeDeleteSelected: () => {
+    const { collabService, isCollaborating, deleteSelected, selectedIds } =
+      get();
+    if (collabService && isCollaborating) {
+      collabService.deleteSelected(selectedIds);
+      deleteSelected();
+    } else {
+      deleteSelected();
+    }
+  },
+
+  collaborativeClearCanvas: () => {
+    const { collabService, isCollaborating, clearCanvas } = get();
+    if (collabService && isCollaborating) {
+      collabService.clearCanvas();
+    } else {
+      clearCanvas();
+    }
+  },
+
+  disconnectCollaboration: () => {
+    const { collabService } = get();
+    if (collabService) {
+      collabService.disconnect();
+    }
+    set({ isCollaborating: false, collabService: null });
   },
 }));
