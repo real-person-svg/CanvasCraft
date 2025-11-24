@@ -110,8 +110,8 @@ export class CollaborationService {
     this.onStateChange = callback;
   }
 
-  offStateChanged(callback: (state: CanvasState) => void) {
-    if (this.onStateChange === callback) {
+  offStateChanged(callback: (state: CanvasState) => void | null) {
+    if (callback === null || this.onStateChange === callback) {
       this.onStateChange = null;
     }
   }

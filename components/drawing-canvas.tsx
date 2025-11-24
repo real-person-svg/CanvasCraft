@@ -103,6 +103,9 @@ export function DrawingCanvas() {
   const [tempGuides, setTempGuides] = useState<GuideLine[]>([]); // 临时吸附提示线
   const [snapDistance, setSnapDistance] = useState(1); // 吸附距离(像素)
 
+  const [erasedElements, setErasedElements] = useState<string[]>([]); // 已擦除的元素ID列表
+  const [isMouseDown, setIsMouseDown] = useState<boolean>(false); // 鼠标是否按下
+
   const { resolvedTheme } = useTheme();
 
   const {
@@ -135,6 +138,7 @@ export function DrawingCanvas() {
     collaborativeDeleteSelected,
     collaborativeClearCanvas,
     disconnectCollaboration,
+    eraseSelected,
   } = useCanvasStore();
 
   // 初始化协同服务（仅创建实例，不自动连接）
@@ -348,6 +352,36 @@ export function DrawingCanvas() {
     },
     [shapes]
   );
+
+  // 处理点击橡皮擦后鼠标按下事件
+  const handleEraserMouseDown = (pos: { x: number; y: number }) => {
+    setErasedElements([]);
+  };
+
+  // 处理橡皮擦鼠标移动
+  const handleEraserMouseMove = (pos: { x: number; y: number }) => {
+    const hoveredShape = findShapeAtPosition(pos.x, pos.y);
+    if (hoveredShape !== null && !erasedElements.includes(hoveredShape.id)) {
+      console.log("hoveredShape", hoveredShape);
+      // 计算新透明度
+      const currentOpacity = hoveredShape.opacity || 1;
+      const newOpacity = Math.max(0, currentOpacity - 0.8);
+      // 临时更新元素透明度（视觉反馈）
+      collaborativeUpdateShape(hoveredShape.id, {
+        opacity: newOpacity,
+      });
+      // 添加到已擦除元素列表，确保只处理一次
+      setErasedElements((prev) => [...prev, hoveredShape.id]);
+    }
+  };
+
+  // 处理橡皮擦鼠标释放
+  const handleEraserMouseUp = () => {
+    // 删除经过的元素
+    eraseSelected(erasedElements);
+    // 重置状态
+    setErasedElements([]);
+  };
 
   // 自定义确认对话框
   const showConfirmation = (
@@ -943,11 +977,18 @@ export function DrawingCanvas() {
   }, [draw]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    setIsMouseDown(true);
     const pos = getCanvasCoordinates(e.clientX, e.clientY);
 
     if (tool === "hand") {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
+      return;
+    }
+
+    // 新增橡皮擦工具处理
+    if (tool === "eraser") {
+      handleEraserMouseDown(pos);
       return;
     }
 
@@ -1028,6 +1069,14 @@ export function DrawingCanvas() {
     // 移动时清除临时辅助线，除非正在拖拽或绘制
     if (!isDragging && !isResizing && !isDrawing) {
       setTempGuides([]);
+    }
+
+    // 橡皮擦工具处理
+    if (tool === "eraser" && isMouseDown) {
+      // 需要添加isMouseDown状态
+      const pos = getCanvasCoordinates(e.clientX, e.clientY);
+      handleEraserMouseMove(pos);
+      return;
     }
 
     if (isPanning && lastPanPoint) {
@@ -1149,6 +1198,12 @@ export function DrawingCanvas() {
   };
 
   const handleMouseUp = () => {
+    setIsMouseDown(false);
+    // 新增橡皮擦处理
+    if (tool === "eraser") {
+      handleEraserMouseUp();
+    }
+
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
@@ -1238,6 +1293,9 @@ export function DrawingCanvas() {
   }, [selectedIds, collaborativeDeleteSelected]);
 
   const getCursorStyle = () => {
+    if (tool === "eraser") {
+      return 'url(\'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13L5 5"/><path d="M7 15l10-10"/><path d="M15 9H9"/></svg>\') 0 24, auto';
+    }
     if (isResizing) {
       switch (resizeHandle) {
         case "nw":

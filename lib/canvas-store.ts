@@ -112,6 +112,9 @@ interface CanvasStore {
   collaborativeDeleteSelected: () => void;
   collaborativeClearCanvas: () => void;
   disconnectCollaboration: () => void;
+
+  // 橡皮擦删除元素
+  eraseSelected: (ids: string[]) => void;
 }
 
 // 初始化数据加载
@@ -501,18 +504,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   initializeCollaboration: (canvasId: string) => {
     if (typeof window === "undefined") return;
 
+    // 如果已有服务实例，先清理
+    const { collabService } = get();
+    if (collabService) {
+      collabService.disconnect(); // 移除所有连接
+    }
+
     const service = new CollaborationService(canvasId);
-
-    // 注册状态变化回调
-    const stateChangeCallback = (state: CanvasState) => {
-      get().setPaths(state.paths);
-      get().setShapes(state.shapes);
-      set({ isCollaborating: true, isCollabLoading: false, collabError: null });
-    };
-
-    service.onStateChanged(stateChangeCallback);
-
-    set({ collabService: service, canvasId });
+    set({ collabService: service, canvasId, isCollaborating: false });
   },
 
   toggleCollaboration: async () => {
@@ -523,6 +522,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return;
     }
 
+    // 定义状态变化回调函数
+    const stateChangeCallback = (state: CanvasState) => {
+      setPaths(state.paths);
+      setShapes(state.shapes);
+    };
+
     if (isCollaborating) {
       // 关闭协同
       collabService.disconnect();
@@ -532,6 +537,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       set({ isCollabLoading: true, collabError: null });
 
       try {
+        collabService.onStateChanged(stateChangeCallback);
         // 触发连接（通过订阅文档实现）
         await collabService.subscribe();
 
@@ -539,7 +545,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         const initialState = collabService.getCurrentState();
         setPaths(initialState.paths);
         setShapes(initialState.shapes);
-        set({ isCollaborating: true });
+        set({
+          isCollaborating: true,
+        });
       } catch (err) {
         set({ collabError: "协同连接失败，请重试" });
         console.error("协同连接失败:", err);
@@ -603,5 +611,29 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       collabService.disconnect();
     }
     set({ isCollaborating: false, collabService: null });
+  },
+
+  eraseSelected: (ids: string[]) => {
+    const { collabService, isCollaborating, deletePath, deleteShape } = get();
+    if (collabService && isCollaborating) {
+      collabService.deleteSelected(ids);
+      ids.forEach((id) => {
+        const shape = get().shapes.find((s) => s.id === id);
+        if (shape) {
+          deleteShape(id);
+        } else {
+          deletePath(id);
+        }
+      });
+    } else {
+      ids.forEach((id) => {
+        const shapeId = get().shapes.find((s) => s.id === id);
+        if (shapeId) {
+          deleteShape(id);
+        } else {
+          deletePath(id);
+        }
+      });
+    }
   },
 }));

@@ -12,6 +12,7 @@ import {
   Minus,
   Grid3X3,
   Magnet,
+  Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/lib/canvas-store";
@@ -29,6 +30,7 @@ const tools = [
   { id: "line", icon: Minus, label: "线条 (L)" },
   { id: "text", icon: Type, label: "文本 (T)" },
   { id: "image", icon: Images, label: "图片 (I)" },
+  { id: "eraser", icon: Eraser, label: "橡皮擦 (E)" },
 ] as const;
 
 export function DrawingToolbar() {
