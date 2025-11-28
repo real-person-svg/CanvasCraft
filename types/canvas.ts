@@ -7,7 +7,8 @@ export type Tool =
   | "circle"
   | "arrow"
   | "text"
-  | "image";
+  | "image"
+  | "eraser";
 export type ImageFilter = "none" | "grayscale" | "sepia" | "invert";
 
 export interface CanvasPath {
