@@ -166,7 +166,7 @@ export function KeyboardShortcuts() {
       // 清空画布（Ctrl+Shift+Delete）
       if (isCtrl && isShift && e.key === "Delete") {
         e.preventDefault();
-        if (confirm("Clear entire canvas?")) {
+        if (confirm("清空画布?")) {
           clearPaths();
           clearShapes();
           clearSelection();

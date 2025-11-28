@@ -396,7 +396,6 @@ export function DrawingCanvas() {
     const hoveredPath = findPathAtPosition(pos.x, pos.y);
 
     if (hoveredShape !== null && !erasedElements.includes(hoveredShape.id)) {
-      console.log("hoveredShape", hoveredShape);
       // 计算新透明度
       const currentOpacity = hoveredShape.opacity || 1;
       const newOpacity = Math.max(0, currentOpacity - 0.8);
@@ -591,6 +590,7 @@ export function DrawingCanvas() {
     // 恢复画布状态
     ctx.restore();
   }, [
+    canvasRef,
     paths,
     shapes,
     currentPath,
@@ -608,11 +608,6 @@ export function DrawingCanvas() {
     rotation,
     isCollaborating, // 添加协同状态作为依赖
     canvasId, // 添加画布ID作为依赖，确保切换画布时重绘
-    collaborativeAddPath,
-    collaborativeAddShape,
-    collaborativeUpdateShape,
-    collaborativeDeleteSelected,
-    collaborativeClearCanvas,
   ]);
 
   // 只绘制临时吸附提示线
@@ -857,8 +852,8 @@ export function DrawingCanvas() {
         ctx.restore();
         break;
       case "image":
-        ctx.globalAlpha = shape.opacity || 1;
         ctx.save();
+        ctx.globalAlpha = shape.opacity || 1;
         switch (shape.filter) {
           case "grayscale":
             ctx.filter = "grayscale(100%)";
@@ -883,7 +878,6 @@ export function DrawingCanvas() {
           shape.height || 100
         );
         ctx.restore(); // 恢复滤镜设置
-        ctx.globalAlpha = 1;
         break;
       case "line":
         // 线条处理类似箭头

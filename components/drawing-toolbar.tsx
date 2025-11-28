@@ -13,12 +13,17 @@ import {
   Grid3X3,
   Magnet,
   Eraser,
+  Download,
+  FilePlus,
+  FileDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/lib/canvas-store";
 import { ColorPicker } from "./color-picker";
 import { StrokeWidthPicker } from "./stroke-width-picker";
 import { ThemeToggle } from "./theme-toggle";
+import { importJSON } from "@/lib/utils";
+import { toast } from "sonner";
 
 const tools = [
   { id: "select", icon: MousePointer2, label: "选择 (V)" },
@@ -42,6 +47,9 @@ export function DrawingToolbar() {
     importImage,
     snapEnabled,
     setSnapEnabled,
+    exportToJSON,
+    additionalImportFromJSON,
+    overwriteImportFromJSON,
   } = useCanvasStore();
 
   const handleImagesClick = () => {
@@ -51,40 +59,47 @@ export function DrawingToolbar() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const img = new Image();
-          img.onload = () => {
-            // 计算合适的尺寸，保持纵横比
-            const maxWidth = 400;
-            const maxHeight = 300;
-            let width = img.width;
-            let height = img.height;
+        try {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              // 计算合适的尺寸，保持纵横比
+              const maxWidth = 400;
+              const maxHeight = 300;
+              let width = img.width;
+              let height = img.height;
 
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
 
-            // 默认位置在画布中心
-            const centerX = (window.innerWidth - width) / 2;
-            const centerY = (window.innerHeight - height) / 2;
+              // 默认位置在画布中心
+              const centerX = (window.innerWidth - width) / 2;
+              const centerY = (window.innerHeight - height) / 2;
 
-            importImage(
-              event.target?.result as string,
-              centerX,
-              centerY,
-              width,
-              height
-            );
+              importImage(
+                event.target?.result as string,
+                centerX,
+                centerY,
+                width,
+                height
+              );
+            };
+            img.src = event.target?.result as string;
           };
-          img.src = event.target?.result as string;
-        };
-        reader.readAsDataURL(file);
+          reader.readAsDataURL(file);
+          toast.success("导入图片成功", { closeButton: true });
+        } catch (error) {
+          toast.error("导入图片失败" + (error as Error).message, {
+            closeButton: true,
+          });
+        }
       }
     };
     input.click();
@@ -95,7 +110,9 @@ export function DrawingToolbar() {
       {tools.map((toolItem) => (
         <Button
           key={toolItem.id}
-          variant={tool === toolItem.id ? "default" : "ghost"}
+          variant={
+            tool !== "image" && tool === toolItem.id ? "default" : "ghost"
+          }
           size="sm"
           onClick={() => {
             setTool(toolItem.id);
@@ -117,7 +134,6 @@ export function DrawingToolbar() {
 
       <div className="w-px h-6 bg-border mx-1" />
 
-      {/* Grid Toggle Button */}
       <Button
         variant={showGrid ? "default" : "ghost"}
         size="sm"
@@ -140,6 +156,44 @@ export function DrawingToolbar() {
         className="h-8 w-8 p-0"
       >
         <Magnet className="h-4 w-4" />
+      </Button>
+
+      <div className="w-px h-6 bg-border mx-1" />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => exportToJSON()}
+        title="导出"
+        className="h-8 w-8 p-0"
+      >
+        <Download className="h-4 w-4" />
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => importJSON(additionalImportFromJSON)}
+        title="追加导入"
+        className="h-8 w-8 p-0"
+      >
+        <FilePlus className="h-4 w-4" />
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          toast("覆盖导入后，将清空原有画布，确认导入吗？", {
+            action: {
+              label: "确认",
+              onClick: () => importJSON(overwriteImportFromJSON),
+            },
+          })
+        }
+        title="覆盖导入"
+        className="h-8 w-8 p-0"
+      >
+        <FileDown className="h-4 w-4" />
       </Button>
     </div>
   );

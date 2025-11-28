@@ -2,6 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -41,6 +42,15 @@ export default function RootLayout({
         >
           {children}
         </ThemeProvider>
+
+        <Toaster
+          position="top-right" // 弹出位置
+          richColors // 启用高级颜色
+          expand={false}
+          toastOptions={{
+            duration: 3000, // 自动关闭时间（毫秒）
+          }}
+        />
       </body>
     </html>
   );

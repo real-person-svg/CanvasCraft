@@ -117,6 +117,11 @@ interface CanvasStore {
 
   // 橡皮擦删除元素
   eraseSelected: (ids: string[]) => void;
+
+  //JSON导出，追加导入，覆盖导入
+  exportToJSON: () => void;
+  additionalImportFromJSON: (json: string) => void;
+  overwriteImportFromJSON: (json: string) => void;
 }
 
 // 初始化数据加载
@@ -655,6 +660,111 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           deletePath(id);
         }
       });
+    }
+  },
+
+  // 导出功能
+  exportToJSON: async () => {
+    const { paths, shapes } = get();
+    const dataToExport = {
+      version: "1.0",
+      timestamp: new Date().toISOString(),
+      paths: [...paths],
+      shapes: [...shapes],
+    };
+
+    const jsonString = JSON.stringify(dataToExport, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `canvas-export-${new Date().getTime()}.json`;
+    document.body.appendChild(a);
+    a.click();
+
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  },
+
+  // 导入功能
+  additionalImportFromJSON: async (jsonData: string) => {
+    try {
+      const parsed = JSON.parse(jsonData);
+
+      // 验证导入数据格式
+      if (
+        !parsed.paths ||
+        !parsed.shapes ||
+        !Array.isArray(parsed.paths) ||
+        !Array.isArray(parsed.shapes)
+      ) {
+        throw new Error(
+          "Invalid JSON format - missing or invalid paths/shapes"
+        );
+      }
+
+      // 为导入的元素生成新ID以避免冲突
+      const newPaths = parsed.paths.map((path: CanvasPath) => ({
+        ...path,
+        id: Math.random().toString(36).substring(7), // 生成新ID
+      }));
+
+      const newShapes = parsed.shapes.map((shape: CanvasShape) => ({
+        ...shape,
+        id: Math.random().toString(36).substring(7), // 生成新ID
+      }));
+
+      // 追加到现有内容
+      set((state) => ({
+        paths: [...state.paths, ...newPaths],
+        shapes: [...state.shapes, ...newShapes],
+      }));
+
+      // 保存到历史记录和本地存储
+      get().saveToHistory();
+      get().saveToLocalStorage();
+
+      return true;
+    } catch (error) {
+      console.error("Failed to import JSON data:", error);
+      throw error; // 允许调用者处理错误
+    }
+  },
+  overwriteImportFromJSON: async (jsonData: string) => {
+    try {
+      const parsed = JSON.parse(jsonData);
+
+      // 验证导入数据格式
+      if (
+        !parsed.paths ||
+        !parsed.shapes ||
+        !Array.isArray(parsed.paths) ||
+        !Array.isArray(parsed.shapes)
+      ) {
+        throw new Error(
+          "Invalid JSON format - missing or invalid paths/shapes"
+        );
+      }
+
+      // 直接覆盖现有内容
+      set({
+        paths: [...parsed.paths],
+        shapes: [...parsed.shapes],
+        selectedIds: [], // 清除选择
+      });
+
+      // 保存到历史记录和本地存储
+      get().saveToHistory();
+      get().saveToLocalStorage();
+
+      return true;
+    } catch (error) {
+      console.error("Failed to import JSON data:", error);
+      throw error; // 允许调用者处理错误
     }
   },
 }));
