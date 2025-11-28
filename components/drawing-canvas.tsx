@@ -68,6 +68,8 @@ export function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map()); // 图片缓存，避免重复创建Image对象
+  const imageLoadedStatus = useRef<Map<string, boolean>>(new Map()); // 用于跟踪图片是否已加载完成
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -608,6 +610,7 @@ export function DrawingCanvas() {
     rotation,
     isCollaborating, // 添加协同状态作为依赖
     canvasId, // 添加画布ID作为依赖，确保切换画布时重绘
+    imageLoadedStatus, // 添加图片加载状态作为依赖，确保图片加载完成后重绘
   ]);
 
   // 只绘制临时吸附提示线
@@ -725,6 +728,32 @@ export function DrawingCanvas() {
     ctx.fill();
     ctx.globalAlpha = 1;
   };
+
+  // 确保图片被加载并缓存
+  const ensureImageLoaded = useCallback((src: string): HTMLImageElement => {
+    // 如果图片已在缓存中，直接返回
+    if (imageCache.current.has(src)) {
+      return imageCache.current.get(src)!;
+    }
+    const img = new Image(); // 创建新的Image对象
+    img.crossOrigin = 'anonymous'; // 允许跨域访问图片
+    img.src = src; // 设置图片源
+    imageLoadedStatus.current.set(src, false); // 标记为加载中
+
+    img.onload = () => {
+      imageLoadedStatus.current.set(src, true); // 当图片加载完成时更新状态
+      draw(); // 强制重新绘制画布，确保图片显示
+    };
+    
+    img.onerror = () => {
+      console.error(`Failed to load image: ${src}`); // 加载失败时的处理
+      imageLoadedStatus.current.set(src, false);
+    };
+
+    imageCache.current.set(src, img); // 将图片添加到缓存
+    
+    return img;
+  }, [draw]);
 
   // 绘制图形
   const drawShape = (ctx: CanvasRenderingContext2D, shape: CanvasShape) => {
@@ -868,15 +897,30 @@ export function DrawingCanvas() {
             ctx.filter = "none";
             break;
         }
-        const img = new Image();
-        img.src = shape.src || "";
-        ctx.drawImage(
-          img,
-          shape.x,
-          shape.y,
-          shape.width || 100,
-          shape.height || 100
-        );
+        // 确保图片已加载
+        if (shape.src) {
+          const img = ensureImageLoaded(shape.src);
+          // 只有当图片加载完成或者我们已经尝试加载过（避免初始绘制时的空白）才绘制
+          if (imageLoadedStatus.current.get(shape.src) || imageCache.current.has(shape.src)) {
+            ctx.drawImage(
+              img,
+              shape.x,
+              shape.y,
+              shape.width || 100,
+              shape.height || 100
+            );
+          } else {
+            // 图片未加载完成时，绘制一个占位矩形
+            ctx.fillStyle = '#e0e0e052';
+            ctx.fillRect(
+              shape.x,
+              shape.y,
+              shape.width || 100,
+              shape.height || 100
+            );
+          }
+        }
+        ctx.globalAlpha = shape.opacity || 1;
         ctx.restore(); // 恢复滤镜设置
         break;
       case "line":
