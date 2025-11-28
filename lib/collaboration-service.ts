@@ -195,6 +195,133 @@ export class CollaborationService {
     }
   }
 
+  // 更新路径
+  updatePath(id: string, updates: Partial<CanvasPath>) {
+    if (!this.hasConnected() || !this.doc.data) return; // 未连接时直接返回
+
+    try {
+      // 确保 paths 是数组
+      if (!this.doc.data.paths || !Array.isArray(this.doc.data.paths)) {
+        console.warn("paths 不是数组，无法更新路径");
+        return;
+      }
+
+      const paths = this.doc.data.paths;
+      const index = paths.findIndex((path) => path.id === id);
+      if (index === -1) {
+        console.warn(`未找到 ID 为 ${id} 的路径`);
+        return;
+      }
+
+      const targetPath = paths[index];
+      if (!targetPath) {
+        console.warn(`路径索引 ${index} 对应的对象不存在`);
+        return;
+      }
+
+      // 为每个要更新的属性创建操作
+      const ops: any[] = [];
+
+      // 递归处理深层嵌套对象的函数
+      const processUpdates = (
+        updates: any,
+        target: any,
+        basePath: (string | number)[]
+      ) => {
+        Object.entries(updates).forEach(([key, value]) => {
+          const currentPath = [...basePath, key];
+
+          // 检查是否为深层嵌套对象且两边都是对象类型
+          if (
+            value !== null &&
+            typeof value === "object" &&
+            !Array.isArray(value) &&
+            target[key] !== null &&
+            typeof target[key] === "object" &&
+            !Array.isArray(target[key])
+          ) {
+            // 递归处理嵌套对象
+            processUpdates(value, target[key], currentPath);
+          } else {
+            // 创建更新操作 - 确保路径中的所有元素都是字符串
+            const operation: any = {
+              p: currentPath.map((item) => String(item)), // 转换所有元素为字符串
+              oi: value, // 新值
+            };
+
+            // 安全地获取旧值
+            if (Object.prototype.hasOwnProperty.call(target, key)) {
+              operation.od = target[key]; // 旧值
+            }
+
+            ops.push(operation);
+          }
+        });
+      };
+
+      // 开始处理更新，基础路径为 ["paths", index]
+      processUpdates(updates, targetPath, ["paths", index]);
+
+      // 提交操作到 ShareDB
+      if (ops.length > 0) {
+        this.doc.submitOp(ops);
+        this.notifyStateChange();
+      }
+    } catch (error) {
+      console.error("更新路径时出错:", error);
+
+      // 尝试更安全的方式：复制整个数组进行修改后替换（回退策略）
+      try {
+        if (this.doc.data?.paths && Array.isArray(this.doc.data.paths)) {
+          const updatedPaths = [...this.doc.data.paths];
+          const index = updatedPaths.findIndex((path) => path.id === id);
+          if (index !== -1 && updatedPaths[index]) {
+            // 创建一个新的路径对象，深度合并现有属性和更新的属性
+            const deepMerge = (target: any, source: any): any => {
+              const output = { ...target };
+              if (
+                target &&
+                source &&
+                typeof target === "object" &&
+                typeof source === "object"
+              ) {
+                Object.keys(source).forEach((key) => {
+                  if (
+                    source[key] &&
+                    typeof source[key] === "object" &&
+                    !Array.isArray(source[key])
+                  ) {
+                    if (!(key in target))
+                      Object.assign(output, { [key]: source[key] });
+                    else output[key] = deepMerge(target[key], source[key]);
+                  } else {
+                    Object.assign(output, { [key]: source[key] });
+                  }
+                });
+              }
+              return output;
+            };
+
+            // 深度合并更新
+            updatedPaths[index] = deepMerge(updatedPaths[index], updates);
+
+            // 使用替换操作更新整个数组
+            this.doc.submitOp([
+              {
+                p: ["paths"],
+                oi: updatedPaths,
+                od: this.doc.data.paths, // 提供旧数组作为上下文
+              },
+            ]);
+            this.notifyStateChange();
+          }
+        }
+      } catch (retryError) {
+        console.error("重试更新路径失败:", retryError);
+      }
+    }
+  }
+
   // 更新形状
   updateShape(id: string, updates: Partial<CanvasShape>) {
     if (!this.hasConnected() || !this.doc.data) return; // 未连接时直接返回

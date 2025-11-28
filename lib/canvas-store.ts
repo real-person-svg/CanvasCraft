@@ -37,6 +37,7 @@ interface CanvasStore {
   // 操作方法
   addPath: (path: CanvasPath) => void;
   addShape: (shape: CanvasShape) => void;
+  updatePath: (id: string, updates: Partial<CanvasPath>) => void;
   updateShape: (id: string, updates: Partial<CanvasShape>) => void;
   deleteShape: (id: string) => void;
   deletePath: (id: string) => void;
@@ -108,6 +109,7 @@ interface CanvasStore {
   toggleCollaboration: () => Promise<void>;
   collaborativeAddPath: (path: CanvasPath) => void;
   collaborativeAddShape: (shape: CanvasShape) => void;
+  collaborativeUpdatePath: (id: string, updates: Partial<CanvasPath>) => void;
   collaborativeUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
   collaborativeDeleteSelected: () => void;
   collaborativeClearCanvas: () => void;
@@ -179,6 +181,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   addShape: (shape) => {
     set((state) => ({ shapes: [...state.shapes, shape] }));
+    get().saveToHistory();
+    get().saveToLocalStorage();
+  },
+  updatePath: (id, updates) => {
+    set((state) => ({
+      paths: state.paths.map((path) =>
+        path.id === id ? { ...path, ...updates } : path
+      ),
+    }));
     get().saveToHistory();
     get().saveToLocalStorage();
   },
@@ -572,6 +583,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       collabService.addShape(shape);
     } else {
       addShape(shape);
+    }
+  },
+
+  collaborativeUpdatePath: (id: string, updates: Partial<CanvasPath>) => {
+    const { collabService, isCollaborating, updatePath } = get();
+    if (collabService && isCollaborating) {
+      collabService.updatePath(id, updates);
+      updatePath(id, updates);
+    } else {
+      updatePath(id, updates);
     }
   },
 

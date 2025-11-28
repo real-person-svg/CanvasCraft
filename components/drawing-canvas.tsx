@@ -12,6 +12,7 @@ import { ShortcutsHelp } from "./shortcuts-help";
 import { CustomDialog } from "./custom-dialog";
 import type { CanvasShape, CanvasPath } from "@/types/canvas";
 import type { GuideLine } from "@/types/canvas";
+import { pointToLineDistance } from "@/lib/utils";
 
 // 画笔压感模拟
 function getStroke(points: number[][], options: any = {}) {
@@ -134,6 +135,7 @@ export function DrawingCanvas() {
     toggleCollaboration,
     collaborativeAddPath,
     collaborativeAddShape,
+    collaborativeUpdatePath,
     collaborativeUpdateShape,
     collaborativeDeleteSelected,
     collaborativeClearCanvas,
@@ -180,7 +182,7 @@ export function DrawingCanvas() {
     [stagePos, stageScale]
   );
 
-  // 查找当前鼠标位置的形状，实现碰撞检测
+  // 查找当前鼠标位置的形状，实现形状碰撞检测
   const findShapeAtPosition = useCallback(
     (x: number, y: number): CanvasShape | null => {
       // 这样可以确保最上层的形状被选中
@@ -198,6 +200,36 @@ export function DrawingCanvas() {
       return null;
     },
     [shapes]
+  );
+
+  // 新增：查找当前鼠标位置的路径
+  const findPathAtPosition = useCallback(
+    (x: number, y: number): CanvasPath | null => {
+      // 从后往前遍历，确保最上层的路径被选中
+      for (let i = paths.length - 1; i >= 0; i--) {
+        const path = paths[i];
+        const points = path.points;
+
+        // 检查路径的每个线段
+        for (let j = 0; j < points.length - 3; j += 2) {
+          const x1 = points[j];
+          const y1 = points[j + 1];
+          const x2 = points[j + 2];
+          const y2 = points[j + 3];
+
+          // 计算点到线段的距离
+          const distance = pointToLineDistance(x, y, x1, y1, x2, y2);
+
+          // 如果距离小于路径宽度的一半（考虑缩放），则认为点在路径上
+          const hitDistance = path.strokeWidth / 2 / stageScale;
+          if (distance <= hitDistance) {
+            return path;
+          }
+        }
+      }
+      return null;
+    },
+    [paths, stageScale]
   );
 
   // 获取当前鼠标位置的调整句柄
@@ -361,6 +393,8 @@ export function DrawingCanvas() {
   // 处理橡皮擦鼠标移动
   const handleEraserMouseMove = (pos: { x: number; y: number }) => {
     const hoveredShape = findShapeAtPosition(pos.x, pos.y);
+    const hoveredPath = findPathAtPosition(pos.x, pos.y);
+
     if (hoveredShape !== null && !erasedElements.includes(hoveredShape.id)) {
       console.log("hoveredShape", hoveredShape);
       // 计算新透明度
@@ -372,6 +406,18 @@ export function DrawingCanvas() {
       });
       // 添加到已擦除元素列表，确保只处理一次
       setErasedElements((prev) => [...prev, hoveredShape.id]);
+    }
+
+    if (hoveredPath !== null && !erasedElements.includes(hoveredPath.id)) {
+      // 计算新透明度
+      const currentOpacity = hoveredPath.opacity || 1;
+      const newOpacity = Math.max(0, currentOpacity - 0.8);
+      // 临时更新路径透明度（视觉反馈）
+      collaborativeUpdatePath(hoveredPath.id, {
+        opacity: newOpacity,
+      });
+      // 简单处理：添加已擦除的路径ID
+      setErasedElements((prev) => [...prev, hoveredPath.id]);
     }
   };
 
@@ -1006,9 +1052,7 @@ export function DrawingCanvas() {
           }
         }
       }
-
       const clickedShape = findShapeAtPosition(pos.x, pos.y);
-
       if (clickedShape) {
         if (!selectedIds.includes(clickedShape.id)) {
           if (e.shiftKey) {
