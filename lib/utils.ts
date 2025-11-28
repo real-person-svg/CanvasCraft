@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { toast } from "sonner";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,4 +38,29 @@ export const pointToLineDistance = (
     (px - projectionX) * (px - projectionX) +
       (py - projectionY) * (py - projectionY)
   );
+};
+
+//导入辅助函数
+export const importJSON = async (importFn: (json: string) => void) => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) {
+      const content = await file.text();
+      try {
+        importFn(content);
+        setTimeout(() => {
+          toast.success("导入成功", { closeButton: true });
+        }, 10);
+      } catch (err) {
+        toast.error("导入失败: " + (err as Error).message, {
+          closeButton: true,
+        });
+      }
+    }
+  };
+  input.click();
 };
