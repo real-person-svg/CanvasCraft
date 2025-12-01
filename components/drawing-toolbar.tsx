@@ -92,6 +92,7 @@ export function DrawingToolbar() {
               );
             };
             img.src = event.target?.result as string;
+            console.log(event.target?.result);
           };
           reader.readAsDataURL(file);
           toast.success("导入图片成功", { closeButton: true });
