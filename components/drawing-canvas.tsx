@@ -730,30 +730,33 @@ export function DrawingCanvas() {
   };
 
   // 确保图片被加载并缓存
-  const ensureImageLoaded = useCallback((src: string): HTMLImageElement => {
-    // 如果图片已在缓存中，直接返回
-    if (imageCache.current.has(src)) {
-      return imageCache.current.get(src)!;
-    }
-    const img = new Image(); // 创建新的Image对象
-    img.crossOrigin = 'anonymous'; // 允许跨域访问图片
-    img.src = src; // 设置图片源
-    imageLoadedStatus.current.set(src, false); // 标记为加载中
+  const ensureImageLoaded = useCallback(
+    (src: string): HTMLImageElement => {
+      // 如果图片已在缓存中，直接返回
+      if (imageCache.current.has(src)) {
+        return imageCache.current.get(src)!;
+      }
+      const img = new Image(); // 创建新的Image对象
+      img.crossOrigin = "anonymous"; // 允许跨域访问图片
+      img.src = src; // 设置图片源
+      imageLoadedStatus.current.set(src, false); // 标记为加载中
 
-    img.onload = () => {
-      imageLoadedStatus.current.set(src, true); // 当图片加载完成时更新状态
-      draw(); // 强制重新绘制画布，确保图片显示
-    };
-    
-    img.onerror = () => {
-      console.error(`Failed to load image: ${src}`); // 加载失败时的处理
-      imageLoadedStatus.current.set(src, false);
-    };
+      img.onload = () => {
+        imageLoadedStatus.current.set(src, true); // 当图片加载完成时更新状态
+        draw(); // 强制重新绘制画布，确保图片显示
+      };
 
-    imageCache.current.set(src, img); // 将图片添加到缓存
-    
-    return img;
-  }, [draw]);
+      img.onerror = () => {
+        console.error(`Failed to load image: ${src}`); // 加载失败时的处理
+        imageLoadedStatus.current.set(src, false);
+      };
+
+      imageCache.current.set(src, img); // 将图片添加到缓存
+
+      return img;
+    },
+    [draw]
+  );
 
   // 绘制图形
   const drawShape = (ctx: CanvasRenderingContext2D, shape: CanvasShape) => {
@@ -901,7 +904,8 @@ export function DrawingCanvas() {
         if (shape.src) {
           const img = ensureImageLoaded(shape.src);
           // 只有当图片加载完成或者我们已经尝试加载过（避免初始绘制时的空白）才绘制
-          if (imageLoadedStatus.current.get(shape.src) || imageCache.current.has(shape.src)) {
+          // imageLoadedStatus.current.get(shape.src) || imageCache.current.has(shape.src)
+          if (imageLoadedStatus.current.get(shape.src) === true) {
             ctx.drawImage(
               img,
               shape.x,
@@ -911,7 +915,7 @@ export function DrawingCanvas() {
             );
           } else {
             // 图片未加载完成时，绘制一个占位矩形
-            ctx.fillStyle = '#e0e0e052';
+            ctx.fillStyle = "#e0e0e052";
             ctx.fillRect(
               shape.x,
               shape.y,
